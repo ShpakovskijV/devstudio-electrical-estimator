@@ -16,26 +16,61 @@ export async function exportPDF(estimate:Estimate,lang:Lang){
  let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
  const pdf=new jsPDF({unit:'mm',format:'a4'});
  pdf.addFileToVFS('Go-Regular.ttf',btoa(binary));pdf.addFont('Go-Regular.ttf','Go','normal');pdf.setFont('Go');
- const width=210,margin=14;let y=18;
- const line=(value:string,size=10,spacing=7)=>{pdf.setFontSize(size);const rows=pdf.splitTextToSize(value,width-margin*2) as string[];for(const row of rows){if(y>278){pdf.addPage();y=18}pdf.text(row,margin,y);y+=spacing}};
- line('DevStudio | Electrical Estimator',17,11);
- line(txt(lang,'КОШТОРИС ЕЛЕКТРОМОНТАЖНИХ РОБІТ','ELECTRICAL WORK ESTIMATE'),12,9);
- line(`${txt(lang,'Проєкт','Project')}: ${estimate.title}`,10);
- line(`${txt(lang,'Замовник','Client')}: ${estimate.client}`,10);
- line(`${txt(lang,'Дата','Date')}: ${estimate.createdAt}`,10,11);
- for(const [index,item] of estimate.lines.entries()){
-  const label=`${index+1}. ${item.name}`;
-  line(label,10,6);
-  line(`   ${item.quantity} ${item.unit} × ${formatMoney(item.priceKop,lang)} = ${formatMoney(lineTotal(item),lang)}`,9,8);
+ const margin=16,right=194,pageBottom=276;
+ const unit=(u:string)=>lang==='uk'?({m:'м',pcs:'шт.',set:'компл.',hour:'год.'} as Record<string,string>)[u]??u:u;
+ const fmt=(n:number)=>new Intl.NumberFormat(lang==='uk'?'uk-UA':'en-US',{maximumFractionDigits:3}).format(n);
+ let y=20;
+ const newPage=()=>{pdf.addPage();y=20;};
+ const ensure=(height:number)=>{if(y+height>pageBottom)newPage();};
+ const write=(value:string,x:number,at:number,size=9,align:'left'|'right'='left')=>{pdf.setFontSize(size);pdf.setTextColor(24,40,62);pdf.text(value,x,at,{align});};
+ const rule=()=>{pdf.setDrawColor(213,223,234);pdf.line(margin,y,right,y);};
+ const wrapped=(value:string,x:number,maxWidth:number,size=9,leading=5)=>{
+  pdf.setFontSize(size);
+  const rows=pdf.splitTextToSize(value,maxWidth) as string[];
+  for(const row of rows){ensure(leading);write(row,x,y,size);y+=leading;}
+ };
+ const section=(label:string)=>{ensure(12);y+=3;pdf.setFillColor(235,241,249);pdf.rect(margin,y-5,right-margin,9,'F');write(label,margin+3,y+1,9);y+=10;};
+ // Document heading and customer details.
+ pdf.setFillColor(28,49,79);pdf.rect(0,0,210,12,'F');
+ pdf.setTextColor(255,255,255);pdf.setFontSize(10);pdf.text('DevStudio | Electrical Estimator',margin,8);
+ y=24;write(txt(lang,'КОШТОРИС ЕЛЕКТРОМОНТАЖНИХ РОБІТ','ELECTRICAL WORK ESTIMATE'),margin,y,15);y+=10;
+ wrapped(`${txt(lang,'Проєкт','Project')}: ${estimate.title}`,margin,178,10,6);
+ wrapped(`${txt(lang,'Замовник','Client')}: ${estimate.client}`,margin,178,10,6);
+ write(`${txt(lang,'Дата','Date')}: ${estimate.createdAt}`,margin,y,9);y+=10;
+ section(txt(lang,'ПЕРЕЛІК РОБІТ ТА ВИТРАТ','ITEMIZED WORK AND COSTS'));
+ // Each item is kept together where possible; long descriptions wrap naturally.
+ for(const [i,item] of estimate.lines.entries()){
+  pdf.setFontSize(9);
+  const nameRows=pdf.splitTextToSize(`${i+1}. ${item.name}`,174) as string[];
+  const height=nameRows.length*5+8;
+  if(height<pageBottom-20)ensure(height);
+  for(const row of nameRows){ensure(5);write(row,margin+2,y,9);y+=5;}
+  const detail=`${fmt(item.quantity)} ${unit(item.unit)} × ${formatMoney(item.priceKop,lang)}`;
+  ensure(7);write(detail,margin+7,y,8);write(formatMoney(lineTotal(item),lang),right-2,y,9,'right');y+=6;rule();y+=4;
  }
- y+=3;const result=calculate(estimate);
- for(const category of ['work','material','transport','extra'] as Category[])line(`${categories[category][lang==='uk'?0:1]}: ${formatMoney(result.groups[category],lang)}`);
- line(`${txt(lang,'Проміжна сума','Subtotal')}: ${formatMoney(result.subtotal,lang)}`);
- line(`${txt(lang,'Знижка','Discount')} (${estimate.discountPercent}%): -${formatMoney(result.discount,lang)}`);
- line(`${txt(lang,'Націнка','Markup')} (${estimate.markupPercent}%): ${formatMoney(result.markup,lang)}`);
- line(`${txt(lang,'Податок','Tax')} (${estimate.taxPercent}%): ${formatMoney(result.tax,lang)}`);
- line(`${txt(lang,'РАЗОМ','TOTAL')}: ${formatMoney(result.total,lang)}`,13,10);
- line(txt(lang,'Демонстраційні розцінки. Не є комерційною пропозицією.','Demo rates. Not a binding quotation.'),8);
+ const result=calculate(estimate);
+ section(txt(lang,'ПІДСУМОК','SUMMARY'));
+ const summaryRow=(label:string,value:string,emphasis=false)=>{
+  ensure(8);
+  if(emphasis){pdf.setFillColor(227,236,252);pdf.rect(margin,y-5,right-margin,9,'F');}
+  write(label,margin+3,y,emphasis?12:9);write(value,right-3,y,emphasis?12:9,'right');y+=8;
+ };
+ for(const category of ['work','material','transport','extra'] as Category[])
+  summaryRow(categories[category][lang==='uk'?0:1],formatMoney(result.groups[category],lang));
+ rule();y+=6;
+ summaryRow(txt(lang,'Проміжна сума','Subtotal'),formatMoney(result.subtotal,lang));
+ summaryRow(`${txt(lang,'Знижка','Discount')} (${estimate.discountPercent}%)`,`−${formatMoney(result.discount,lang)}`);
+ summaryRow(`${txt(lang,'Націнка','Markup')} (${estimate.markupPercent}%)`,formatMoney(result.markup,lang));
+ summaryRow(`${txt(lang,'Податок','Tax')} (${estimate.taxPercent}%)`,formatMoney(result.tax,lang));
+ ensure(12);y+=3;summaryRow(txt(lang,'РАЗОМ','TOTAL'),formatMoney(result.total,lang),true);
+ y+=5;wrapped(txt(lang,'Демонстраційні розцінки. Не є комерційною пропозицією.','Demo rates. Not a binding quotation.'),margin,178,8,5);
+ const pages=pdf.getNumberOfPages();
+ for(let page=1;page<=pages;page++){
+  pdf.setPage(page);pdf.setDrawColor(215,223,232);pdf.line(margin,285,right,285);
+  pdf.setTextColor(105,119,139);pdf.setFontSize(8);
+  pdf.text('DevStudio OS',margin,290);
+  pdf.text(`${page} / ${pages}`,right,290,{align:'right'});
+ }
  pdf.save(filename(estimate,'pdf'));
 }
 
