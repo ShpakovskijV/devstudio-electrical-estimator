@@ -59,7 +59,7 @@ export async function exportPDF(estimate:Estimate,lang:Lang){
   summaryRow(categories[category][lang==='uk'?0:1],formatMoney(result.groups[category],lang));
  rule();y+=6;
  summaryRow(txt(lang,'Проміжна сума','Subtotal'),formatMoney(result.subtotal,lang));
- summaryRow(`${txt(lang,'Знижка','Discount')} (${estimate.discountPercent}%)`,`−${formatMoney(result.discount,lang)}`);
+ summaryRow(`${txt(lang,'Знижка','Discount')} (${estimate.discountPercent}%)`,result.discount===0?formatMoney(0,lang):`−${formatMoney(result.discount,lang)}`);
  summaryRow(`${txt(lang,'Націнка','Markup')} (${estimate.markupPercent}%)`,formatMoney(result.markup,lang));
  summaryRow(`${txt(lang,'Податок','Tax')} (${estimate.taxPercent}%)`,formatMoney(result.tax,lang));
  ensure(12);y+=3;summaryRow(txt(lang,'РАЗОМ','TOTAL'),formatMoney(result.total,lang),true);
