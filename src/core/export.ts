@@ -55,13 +55,34 @@ export async function exportExcel(estimate:Estimate,lang:Lang){
   row.getCell(6).numFmt='#,##0.00';row.getCell(7).numFmt='#,##0.00';
  }
  const result=calculate(estimate);
- const summary:[string,number][]=[
-  [txt(lang,'Роботи','Labor'),result.groups.work],[txt(lang,'Матеріали','Materials'),result.groups.material],
-  [txt(lang,'Транспорт','Transport'),result.groups.transport],[txt(lang,'Додаткові витрати','Other expenses'),result.groups.extra],
-  [txt(lang,'Проміжна сума','Subtotal'),result.subtotal],[`${txt(lang,'Знижка','Discount')} (${estimate.discountPercent}%)`,-result.discount],
-  [`${txt(lang,'Націнка','Markup')} (${estimate.markupPercent}%)`,result.markup],[`${txt(lang,'Податок','Tax')} (${estimate.taxPercent}%)`,result.tax],
-  [txt(lang,'РАЗОМ','TOTAL'),result.total]];
- for(const [label,value] of summary){const row=sheet.addRow(['',label,'','','','',money(value)]);row.getCell(7).numFmt='#,##0.00';if(label===txt(lang,'РАЗОМ','TOTAL'))row.font={bold:true};}
+ // Category totals use the editable category column and line amount formulas.
+ const first=6,last=5+estimate.lines.length;
+ const summaryStart=sheet.rowCount+1;
+ const categoryTotals:[Category,number][]=[
+  ['work',result.groups.work],['material',result.groups.material],
+  ['transport',result.groups.transport],['extra',result.groups.extra]];
+ for(const [category,cachedKop] of categoryTotals){
+  const rowNo=sheet.rowCount+1;
+  const label=categories[category][lang==='uk'?0:1];
+  const formula=last>=first?`SUMIF(C${first}:C${last},B${rowNo},G${first}:G${last})`:'0';
+  const row=sheet.addRow(['',label,'','','','',{formula,result:money(cachedKop)}]);
+  row.getCell(7).numFmt='#,##0.00';
+ }
+ const subtotalRow=sheet.rowCount+1;
+ sheet.addRow(['',txt(lang,'Проміжна сума','Subtotal'),'','','','',{formula:`SUM(G${summaryStart}:G${subtotalRow-1})`,result:money(result.subtotal)}]);
+ const discountRow=sheet.rowCount+1;
+ sheet.addRow(['',txt(lang,'Знижка','Discount'),'','','',estimate.discountPercent,{formula:`-ROUND(G${subtotalRow}*F${discountRow}/100,2)`,result:-money(result.discount)}]);
+ const markupRow=sheet.rowCount+1;
+ sheet.addRow(['',txt(lang,'Націнка','Markup'),'','','',estimate.markupPercent,{formula:`ROUND((G${subtotalRow}+G${discountRow})*F${markupRow}/100,2)`,result:money(result.markup)}]);
+ const taxRow=sheet.rowCount+1;
+ sheet.addRow(['',txt(lang,'Податок','Tax'),'','','',estimate.taxPercent,{formula:`ROUND((G${subtotalRow}+G${discountRow}+G${markupRow})*F${taxRow}/100,2)`,result:money(result.tax)}]);
+ const totalRow=sheet.rowCount+1;
+ const total=sheet.addRow(['',txt(lang,'РАЗОМ','TOTAL'),'','','','',{formula:`SUM(G${subtotalRow},G${discountRow}:G${taxRow})`,result:money(result.total)}]);
+ total.font={bold:true};
+ for(let r=summaryStart;r<=totalRow;r++)sheet.getRow(r).getCell(7).numFmt='#,##0.00';
+ for(const r of [discountRow,markupRow,taxRow])sheet.getRow(r).getCell(6).numFmt='0.##"%"';
+ wb.calcProperties.fullCalcOnLoad=true;
+ wb.calcProperties.forceFullCalc=true;
  sheet.views=[{state:'frozen',ySplit:6}];
  const buffer=await wb.xlsx.writeBuffer();download(new Blob([buffer as BlobPart],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),filename(estimate,'xlsx'));
 }
