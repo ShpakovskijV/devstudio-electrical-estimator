@@ -1,0 +1,17 @@
+DevStudio OS v1.1
+00_START — правила та навігація
+01_CLIENT_INTAKE — первинні питання клієнту
+02_PROJECT_CARDS — фіксація розуміння задачі
+03_COMMERCIAL_PROPOSALS — шаблони пропозицій
+04_SIMULATIONS — наша навчальна школа
+05_MARKET_RESEARCH — шаблон + актуальний аналіз ринку
+06_CALCCORE — архітектура універсального ядра
+07_QA_RELEASE — перевірка перед здачею
+08_LESSONS_LEARNED — накопичення досвіду
+09_ROADMAP — дорожня карта навчання
+
+10_REAL_PROJECTS/
+  Configurator_Security/
+    00_ORIGINAL_File.zip — оригінал, основна чиста копія для аналізу
+    00_ORIGINAL_Configurator2.zip — контрольний оригінал із .venv
+    01_Reverse_Engineering_Log_v0.1.docx — журнал дослідження системи
