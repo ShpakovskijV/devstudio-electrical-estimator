@@ -82,7 +82,6 @@ export async function exportExcel(estimate:Estimate,lang:Lang){
  for(let r=summaryStart;r<=totalRow;r++)sheet.getRow(r).getCell(7).numFmt='#,##0.00';
  for(const r of [discountRow,markupRow,taxRow])sheet.getRow(r).getCell(6).numFmt='0.##"%"';
  wb.calcProperties.fullCalcOnLoad=true;
- wb.calcProperties.forceFullCalc=true;
  sheet.views=[{state:'frozen',ySplit:6}];
  const buffer=await wb.xlsx.writeBuffer();download(new Blob([buffer as BlobPart],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),filename(estimate,'xlsx'));
 }
